@@ -1,0 +1,9 @@
+name = "wssub"
+main = "_worker.js"
+compatibility_date = "2025-01-02"
+
+vars = { API_HOST = "example.com" }
+
+kv_namespaces = [
+  { binding = "CDNIP", id = "1cfecfd88bea4850a986d55fd54a7ac8" }
+]
