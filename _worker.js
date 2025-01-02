@@ -63,8 +63,9 @@ async function showEditPage(request, env, myToken) {
     // 返回编辑页面的 HTML
     const html = `
         <!DOCTYPE html>
-        <html>
+        <html lang="zh-CN">
         <head>
+            <meta charset="UTF-8"/>
             <title>编辑页面</title>
             <style>
                 body {
