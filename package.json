@@ -1,5 +1,8 @@
 {
   "devDependencies": {
     "wrangler": "^3.99.0"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
   }
 }

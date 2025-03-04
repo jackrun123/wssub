@@ -1,3 +1,5 @@
+import yaml from 'js-yaml';
+
 export default {
     async fetch(request, env, ctx) {
         const url = new URL(request.url);
@@ -11,7 +13,7 @@ export default {
             return new Response('Unauthorized', { status: 401 });
         }
 
-        return await showConfig(env, url);
+        return await showConfig(request, env, url);
     }
 };
 
@@ -193,10 +195,27 @@ async function showEditPage(request, env, myToken) {
     return new Response(html, { headers: { 'Content-Type': 'text/html' } });
 }
 
-async function showConfig(env, url) {
-    let config = await genConfig(env);
+async function showConfig(request, env, url) {
+    let config;
     const isDebug = url.searchParams.has('debug');
-    return new Response(isDebug ? config : btoa(config));
+    const format = url.searchParams.get('format') || 'vless';
+    let userAgent = request.headers.get('User-Agent');
+    userAgent = userAgent == null ? "" : userAgent.toLowerCase();
+
+    console.log("userAgent", userAgent);
+
+    if (userAgent.includes("clash") || format === 'clash') {
+        config = await genClashConfig(env);
+    } else {
+        config = await genConfig(env);
+        config = isDebug ? config : btoa(config);
+    }
+
+    return new Response(config, {
+        headers: {
+            'Content-Type': 'text/plain'
+        }
+    });
 }
 
 async function genVmessUrl(env, address, name) {
@@ -278,4 +297,71 @@ async function genConfig(env) {
     // 将所有 URL 连接为字符串，每行一个
     const result = urls.join('\n');
     return result;
+}
+
+
+async function genClashConfig(env) {
+    const uuid = await env.CDNIP.get("C_UUID");
+    const port = await env.CDNIP.get("C_PORT");
+    const wsHost = await env.CDNIP.get("C_WS_HOST");
+    const wsPath = await env.CDNIP.get("C_WS_PATH");
+    const addrs = await env.CDNIP.get("ADDRS") || "";
+    const addressEntries = addrs.split('\n');
+
+    let proxies = [];
+    for (let entry of addressEntries) {
+        entry = entry.trim();
+        if (entry === "") continue;
+        
+        let [ip, name] = entry.split('#');
+        ip = ip.trim();
+        // 处理重复的名称，如果重复则添加数字后缀
+        name = (name || "proxy").trim();
+        let nameCount = 2;
+        let originalName = name;
+        while (proxies.some(p => p.name === name)) {
+            name = `${originalName}${nameCount}`;
+            nameCount++;
+        }
+
+        proxies.push({
+            name: name,
+            type: "vless",
+            server: ip,
+            port: parseInt(port),
+            uuid: uuid,
+            network: "ws",
+            tls: true,
+            "skip-cert-verify": true,
+            "ws-opts": {
+                path: wsPath,
+                headers: {
+                    host: wsHost
+                }
+            },
+            servername: wsHost,
+            "client-fingerprint": "chrome"
+        });
+    }
+
+    const config = {
+        port: 7890,
+        "socks-port": 7891,
+        "allow-lan": true,
+        mode: "rule",
+        "log-level": "info",
+        proxies: proxies,
+        "proxy-groups": [
+            {
+                name: "PROXY",
+                type: "select",
+                proxies: proxies.map(p => p.name)
+            }
+        ],
+        rules: [
+            "MATCH,PROXY"
+        ]
+    };
+
+    return yaml.dump(config);
 }
